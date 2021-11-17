@@ -99,13 +99,18 @@ func readFile(filePath string) ([]byte, bool, error) {
 		for _, ss := range result1 {
 			for _, s := range ss {
 
-				ret:=cmd(s)
-				if ret != nil {
-
-					key := strings.Replace(strings.Join(ret,"_"),`\u001b[38;5;167m`,"",-1)
-					fmt.Println("len(ret)=========================",len(ret),strings.Join(ret,"_"),key)
-					chineseMap[key] = s
-					enMap[key] = strings.Join(ret," ")
+				//ret:=cmd(s)
+				ret := translate(s)
+				//if ret != nil {
+				//
+				//	key := strings.Replace(strings.Join(ret,"_"),`\u001b[38;5;167m`,"",-1)
+				//	fmt.Println("len(ret)=========================",len(ret),strings.Join(ret,"_"),key)
+				//	chineseMap[key] = s
+				//	enMap[key] = strings.Join(ret," ")
+				//}
+				if ret!= "" {
+					chineseMap[ret] = s
+					enMap[strings.Join(strings.Split(ret," "),"_")] = ret
 				}
 			}
 		}
