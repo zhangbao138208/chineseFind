@@ -2,15 +2,18 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/chromedp/chromedp"
+	"io/ioutil"
 	"log"
+	"os"
 	"testing"
 	"time"
 )
 
 func TestTranslate(t *testing.T) {
-	translate()
+	translate("")
 }
 
 func TestName(t *testing.T) {
@@ -40,4 +43,27 @@ func TestName(t *testing.T) {
 		log.Fatal(err)
 	}
 	log.Printf("Go's time.After example:\n%s", example)
+}
+
+//var keys = []string {"title","label","placeholder"}
+func TestJson(t *testing.T) {
+	// 打开json文件
+	jsonFile, err := os.Open("./json/zh.json")
+
+	// 最好要处理以下错误
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	// 要记得关闭
+	defer jsonFile.Close()
+
+	byteValue, _ := ioutil.ReadAll(jsonFile)
+	jsonMap := make(map[string]string)
+	json.Unmarshal(byteValue,&jsonMap)
+	fmt.Println(jsonMap)
+	fmt.Println(string(byteValue))
+	for k, v := range jsonMap {
+		fmt.Println(k,v)
+	}
 }

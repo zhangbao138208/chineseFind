@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,6 +17,7 @@ import (
 const (
 	ORIGIN = "http://7xvxof.com1.z0.glb.clouddn.com"
 	TARGET = "http://qiniu.*****.**"
+
 )
 var (
 	chineseMap  = map[string]string{
@@ -24,34 +26,53 @@ var (
 	enMap  = map[string]string{
 
 	}
+	alMap = map[string] bool {
+
+	}
+	keys = []string {"title","label","placeholder"}
+	JsonMap = map[string]string{}
 )
 
 func main() {
+	// 打开json文件
+	jsonFile, err := os.Open("./json/zh.json")
+
+	// 最好要处理以下错误
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	// 要记得关闭
+	defer jsonFile.Close()
+
+	byteValue, _ := ioutil.ReadAll(jsonFile)
+	json.Unmarshal(byteValue,&JsonMap)
+
 	files := getFiles("./test")
 	for _, file := range files {
-		_, needHandle, err := readFile(file)
+		output, needHandle, err := readFile(file)
 		if err != nil {
 			panic(err)
 		}
 		if needHandle {
-			//err = writeToFile(file, output)
-			//if err != nil {
-			//	panic(err)
-			//}
-			//fmt.Println(file)
+			err = writeToFile(file, output)
+			if err != nil {
+				panic(err)
+			}
+			fmt.Println(file)
 		}
 	}
-	mjson,_ :=json.Marshal(chineseMap)
-
-	mString :=string(mjson)
-	write("zh.json",strings.Replace(mString,`\u001b[38;5;167m`,"",-1))
-
-
-
-	mjson2,_ :=json.Marshal(enMap)
-
-	mString2 :=string(mjson2)
-	write("en.json",strings.Replace(mString2,`\u001b[38;5;167m`,"",-1))
+	//mjson,_ :=json.Marshal(chineseMap)
+	//
+	//mString :=string(mjson)
+	//write("zh.json",strings.Replace(mString,`\u001b[38;5;167m`,"",-1))
+	//
+	//
+	//
+	//mjson2,_ :=json.Marshal(enMap)
+	//
+	//mString2 :=string(mjson2)
+	//write("en.json",strings.Replace(mString2,`\u001b[38;5;167m`,"",-1))
 }
 
 func getFiles(path string) []string {
@@ -97,9 +118,13 @@ func readFile(filePath string) ([]byte, bool, error) {
 		result1 := reg1.FindAllStringSubmatch(string(line),-1)
 		//fmt.Println("line= result1 = ",string(line), result1)
 		for _, ss := range result1 {
+			continue
 			for _, s := range ss {
-
-				//ret:=cmd(s)
+				_,ok:= alMap[s]
+				if ok {
+					continue
+				}
+                //ret:=cmd(s)
 				ret := translate(s)
 				//if ret != nil {
 				//
@@ -109,25 +134,108 @@ func readFile(filePath string) ([]byte, bool, error) {
 				//	enMap[key] = strings.Join(ret," ")
 				//}
 				if ret!= "" {
-					chineseMap[ret] = s
+					chineseMap[strings.Join(strings.Split(ret," "),"_")] = s
 					enMap[strings.Join(strings.Split(ret," "),"_")] = ret
+					alMap[s] = true
 				}
 			}
 		}
 		//regexp.Match(`^[\u4e00-\u9fa5]`,line)
-
-		if ok, _ := regexp.Match(ORIGIN, line); ok {
-			reg := regexp.MustCompile(ORIGIN)
-			newByte := reg.ReplaceAll(line, []byte(TARGET))
-			output = append(output, newByte...)
-			output = append(output, []byte("\n")...)
-			if !needHandle {
-				needHandle = true
-			}
-		} else {
-			output = append(output, line...)
-			output = append(output, []byte("\n")...)
+		// 不需要替换的
+		fmt.Println(string(line))
+		if strings.HasPrefix(string(line),"//") ||
+			strings.HasPrefix(string(line),"*") ||
+			strings.HasPrefix(string(line),"<!"){
+			fmt.Println("===============HasPrefix=============")
+           continue
 		}
+		for k, v := range JsonMap {
+			fmt.Println("-----------------",string(line),"-----------------")
+			fmt.Println("jsonMap",k,v)
+			for _, key := range keys {
+				pattern := fmt.Sprint(key,"=\"",v,"\"")
+
+				if ok, _ := regexp.Match(pattern, line); ok {
+
+					target := fmt.Sprintf(":%s=\"i18n.t('%s')\"",key,k)
+					reg := regexp.MustCompile(pattern)
+					newByte := reg.ReplaceAll(line, []byte(target))
+					line = newByte
+
+					if !needHandle {
+						needHandle = true
+					}
+					fmt.Println(pattern,string(line))
+				}
+				pattern = fmt.Sprint(":",key,"=\"",v,"\"")
+				if ok, _ := regexp.Match(pattern, line); ok {
+					target := fmt.Sprintf(":%s=\"i18n.t('%s')\"",key,k)
+					reg := regexp.MustCompile(pattern)
+					newByte := reg.ReplaceAll(line, []byte(target))
+					line = newByte
+
+					if !needHandle {
+						needHandle = true
+					}
+					fmt.Println(pattern,string(line))
+				}
+				pattern = fmt.Sprintf(":%s=\"'%s'\"",key,v)
+				if ok, _ := regexp.Match(pattern, line); ok {
+					target := fmt.Sprintf(":%s=\"i18n.t('%s')\"",key,k)
+					reg := regexp.MustCompile(pattern)
+					newByte := reg.ReplaceAll(line, []byte(target))
+					line = newByte
+
+					if !needHandle {
+						needHandle = true
+					}
+					fmt.Println(pattern,string(line))
+				}
+
+			}
+			pattern := fmt.Sprintf("\"%s\"",v)
+			if ok, _ := regexp.Match(pattern, line); ok {
+				target := fmt.Sprintf("i18n.t('%s')",k)
+				reg := regexp.MustCompile(pattern)
+				newByte := reg.ReplaceAll(line, []byte(target))
+				line = newByte
+
+				if !needHandle {
+					needHandle = true
+				}
+				fmt.Println(pattern,string(line))
+			}
+			pattern = fmt.Sprintf("'%s'",v)
+			if ok, _ := regexp.Match(pattern, line); ok {
+				reg := regexp.MustCompile(pattern)
+				target := fmt.Sprintf("i18n.t('%s')",k)
+				newByte := reg.ReplaceAll(line, []byte(target))
+				line = newByte
+
+				if !needHandle {
+					needHandle = true
+				}
+				fmt.Println(pattern,string(line))
+			}
+			pattern = fmt.Sprintf("%s",v)
+			if ok, _ := regexp.Match(pattern, line); ok {
+				reg := regexp.MustCompile(pattern)
+				target := fmt.Sprintf("{{i18n.t('%s')}}",k)
+				newByte := reg.ReplaceAll(line, []byte(target))
+				line = newByte
+
+				if !needHandle {
+					needHandle = true
+				}
+				fmt.Println(pattern,string(line))
+			}
+
+		}
+
+		output = append(output, line...)
+		output = append(output, []byte("\n")...)
+		fmt.Println("else===============:",string(output))
+
 	}
 	return output, needHandle, nil
 }
