@@ -1,6 +1,7 @@
 package main
 
 import (
+	_ "embed"
 	"fmt"
 	"regexp"
 	st "strings"
@@ -44,4 +45,12 @@ func TestReplace(t *testing.T) {
 	s := `I_love_you\u001b[38;5;167m`
 	fmt.Println(s)
 	fmt.Println(st.Replace(s,`\u001b[38;5;167m`,"",-1))
+}
+//go:embed test/phoneCsDataReport.vue
+var phoneCsjs string
+func TestReg3(t *testing.T) {
+  reg:=regexp.MustCompile(`呼入通话时长\(时\)`)
+  //fmt.Println(phoneCsjs)
+  ret := reg.FindAllStringSubmatch(phoneCsjs,-1)
+  fmt.Println(ret)
 }

@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 )
 const (
@@ -29,7 +30,8 @@ var (
 	alMap = map[string] bool {
 
 	}
-	keys = []string {"title","label","placeholder"}
+	PiarList = []Pair{}
+	keys = []string {"start-placeholder","end-placeholder","range-separator","title","label","placeholder"}
 	JsonMap = map[string]string{}
 )
 
@@ -48,20 +50,32 @@ func main() {
 	byteValue, _ := ioutil.ReadAll(jsonFile)
 	json.Unmarshal(byteValue,&JsonMap)
 
-	files := getFiles("./test")
-	for _, file := range files {
-		output, needHandle, err := readFile(file)
-		if err != nil {
-			panic(err)
-		}
-		if needHandle {
-			err = writeToFile(file, output)
+	PiarList = sortMapByValue(JsonMap)
+	fmt.Println(PiarList)
+
+
+
+    wg := sync.WaitGroup{}
+
+	files := getFiles("D:\\work\\ocss-monitor-office\\src\\views\\home.vue")
+	wg.Add(len(files))
+	for _, f := range files {
+		go func(file string) {
+			defer  wg.Done()
+			output, needHandle, err := readFile(file)
 			if err != nil {
 				panic(err)
 			}
-			fmt.Println(file)
-		}
+			if needHandle {
+				err = writeToFile(file, output)
+				if err != nil {
+					panic(err)
+				}
+				fmt.Println(file)
+			}
+		}(f)
 	}
+	wg.Wait()
 	//mjson,_ :=json.Marshal(chineseMap)
 	//
 	//mString :=string(mjson)
@@ -93,6 +107,7 @@ func getFiles(path string) []string {
 	return files
 }
 func readFile(filePath string) ([]byte, bool, error) {
+	isJS := strings.HasSuffix(filePath,".js")
 	f, err := os.OpenFile(filePath, os.O_RDONLY, 0644)
 	if err != nil {
 		return nil, false, err
@@ -109,47 +124,56 @@ func readFile(filePath string) ([]byte, bool, error) {
 			}
 			return nil, needHandle, err
 		}
-		reg1 := regexp.MustCompile("[\u4e00-\u9fa5]+")
-		if reg1 == nil {
-			fmt.Println("regexp err")
-
-		}
-		//根据规则提取关键信息
-		result1 := reg1.FindAllStringSubmatch(string(line),-1)
-		//fmt.Println("line= result1 = ",string(line), result1)
-		for _, ss := range result1 {
-			continue
-			for _, s := range ss {
-				_,ok:= alMap[s]
-				if ok {
-					continue
-				}
-                //ret:=cmd(s)
-				ret := translate(s)
-				//if ret != nil {
-				//
-				//	key := strings.Replace(strings.Join(ret,"_"),`\u001b[38;5;167m`,"",-1)
-				//	fmt.Println("len(ret)=========================",len(ret),strings.Join(ret,"_"),key)
-				//	chineseMap[key] = s
-				//	enMap[key] = strings.Join(ret," ")
-				//}
-				if ret!= "" {
-					chineseMap[strings.Join(strings.Split(ret," "),"_")] = s
-					enMap[strings.Join(strings.Split(ret," "),"_")] = ret
-					alMap[s] = true
-				}
-			}
-		}
-		//regexp.Match(`^[\u4e00-\u9fa5]`,line)
+		//reg1 := regexp.MustCompile("[\u4e00-\u9fa5]+")
+		//if reg1 == nil {
+		//	fmt.Println("regexp err")
+		//
+		//}
+		////根据规则提取关键信息
+		//result1 := reg1.FindAllStringSubmatch(string(line),-1)
+		////fmt.Println("line= result1 = ",string(line), result1)
+		//for _, ss := range result1 {
+		//	continue
+		//	for _, s := range ss {
+		//		_,ok:= alMap[s]
+		//		if ok {
+		//			continue
+		//		}
+        //        //ret:=cmd(s)
+		//		ret := translate(s)
+		//		//if ret != nil {
+		//		//
+		//		//	key := strings.Replace(strings.Join(ret,"_"),`\u001b[38;5;167m`,"",-1)
+		//		//	fmt.Println("len(ret)=========================",len(ret),strings.Join(ret,"_"),key)
+		//		//	chineseMap[key] = s
+		//		//	enMap[key] = strings.Join(ret," ")
+		//		//}
+		//		if ret!= "" {
+		//			chineseMap[strings.Join(strings.Split(ret," "),"_")] = s
+		//			enMap[strings.Join(strings.Split(ret," "),"_")] = ret
+		//			alMap[s] = true
+		//		}
+		//	}
+		//}
+		////regexp.Match(`^[\u4e00-\u9fa5]`,line)
 		// 不需要替换的
 		fmt.Println(string(line))
-		if strings.HasPrefix(string(line),"//") ||
-			strings.HasPrefix(string(line),"*") ||
-			strings.HasPrefix(string(line),"<!"){
+		if strings.Contains(strings.TrimSpace(string(line)),"//") ||
+			strings.HasPrefix(strings.TrimSpace(string(line)),"*") ||
+			strings.HasPrefix(strings.TrimSpace(string(line)),"<!"){
 			fmt.Println("===============HasPrefix=============")
+			output = append(output, line...)
+			output = append(output, []byte("\n")...)
            continue
 		}
-		for k, v := range JsonMap {
+		isVue := strings.HasPrefix(strings.TrimSpace(string(line)),"<") ||
+			strings.HasPrefix(strings.TrimSpace(string(line)),">") ||
+			strings.HasPrefix(strings.TrimSpace(string(line)),"{{")
+		dt := `wtihuanww`
+		for _,piar := range PiarList {
+			k := piar.Key
+			v := strings.Replace(piar.Value,"(","\\(",-1)
+			v = strings.Replace(v,")","\\)",-1)
 			fmt.Println("-----------------",string(line),"-----------------")
 			fmt.Println("jsonMap",k,v)
 			for _, key := range keys {
@@ -157,7 +181,7 @@ func readFile(filePath string) ([]byte, bool, error) {
 
 				if ok, _ := regexp.Match(pattern, line); ok {
 
-					target := fmt.Sprintf(":%s=\"i18n.t('%s')\"",key,k)
+					target := fmt.Sprintf(":%s=\"%s('%s')\"",key,dt,k)
 					reg := regexp.MustCompile(pattern)
 					newByte := reg.ReplaceAll(line, []byte(target))
 					line = newByte
@@ -169,7 +193,7 @@ func readFile(filePath string) ([]byte, bool, error) {
 				}
 				pattern = fmt.Sprint(":",key,"=\"",v,"\"")
 				if ok, _ := regexp.Match(pattern, line); ok {
-					target := fmt.Sprintf(":%s=\"i18n.t('%s')\"",key,k)
+					target := fmt.Sprintf(":%s=\"%s('%s')\"",key,dt,k)
 					reg := regexp.MustCompile(pattern)
 					newByte := reg.ReplaceAll(line, []byte(target))
 					line = newByte
@@ -181,7 +205,7 @@ func readFile(filePath string) ([]byte, bool, error) {
 				}
 				pattern = fmt.Sprintf(":%s=\"'%s'\"",key,v)
 				if ok, _ := regexp.Match(pattern, line); ok {
-					target := fmt.Sprintf(":%s=\"i18n.t('%s')\"",key,k)
+					target := fmt.Sprintf(":%s=\"%s('%s')\"",key,dt,k)
 					reg := regexp.MustCompile(pattern)
 					newByte := reg.ReplaceAll(line, []byte(target))
 					line = newByte
@@ -194,8 +218,16 @@ func readFile(filePath string) ([]byte, bool, error) {
 
 			}
 			pattern := fmt.Sprintf("\"%s\"",v)
+			target := fmt.Sprintf("%s('%s')",dt,k)
+			if !isJS && isVue {
+				target = fmt.Sprintf("%s('%s')",dt,k)
+			} else if !isJS && !isVue {
+				target = fmt.Sprintf("this.%s('%s')",dt,k)
+			} else if isJS {
+				target = fmt.Sprintf("i18n.t('%s')",k)
+			}
 			if ok, _ := regexp.Match(pattern, line); ok {
-				target := fmt.Sprintf("i18n.t('%s')",k)
+
 				reg := regexp.MustCompile(pattern)
 				newByte := reg.ReplaceAll(line, []byte(target))
 				line = newByte
@@ -208,7 +240,7 @@ func readFile(filePath string) ([]byte, bool, error) {
 			pattern = fmt.Sprintf("'%s'",v)
 			if ok, _ := regexp.Match(pattern, line); ok {
 				reg := regexp.MustCompile(pattern)
-				target := fmt.Sprintf("i18n.t('%s')",k)
+
 				newByte := reg.ReplaceAll(line, []byte(target))
 				line = newByte
 
@@ -217,10 +249,97 @@ func readFile(filePath string) ([]byte, bool, error) {
 				}
 				fmt.Println(pattern,string(line))
 			}
-			pattern = fmt.Sprintf("%s",v)
+			// eg: "vip客服"
+			pattern = fmt.Sprintf("%s\"",v)
 			if ok, _ := regexp.Match(pattern, line); ok {
 				reg := regexp.MustCompile(pattern)
-				target := fmt.Sprintf("{{i18n.t('%s')}}",k)
+				if !isJS && isVue {
+					target = fmt.Sprintf("\"+%s('%s')",dt,k)
+				} else if !isJS && !isVue {
+					target = fmt.Sprintf("\"+this.%s('%s')",dt,k)
+				} else if isJS {
+					target = fmt.Sprintf("\"+i18n.t('%s')",k)
+				}
+
+				newByte := reg.ReplaceAll(line, []byte(target))
+				line = newByte
+
+				if !needHandle {
+					needHandle = true
+				}
+				fmt.Println(pattern,string(line))
+			}
+
+			pattern = fmt.Sprintf("%s'",v)
+			if ok, _ := regexp.Match(pattern, line); ok {
+				reg := regexp.MustCompile(pattern)
+				if !isJS && isVue {
+					target = fmt.Sprintf("'+%s('%s')",dt,k)
+				} else if !isJS && !isVue {
+					target = fmt.Sprintf("'+this.%s('%s')",dt,k)
+				} else if isJS {
+					target = fmt.Sprintf("'+i18n.t('%s')",k)
+				}
+
+				newByte := reg.ReplaceAll(line, []byte(target))
+				line = newByte
+
+				if !needHandle {
+					needHandle = true
+				}
+				fmt.Println(pattern,string(line))
+			}
+
+			//eg : "客服.xml"
+			// eg: "vip客服"
+			pattern = fmt.Sprintf("\"%s",v)
+			if ok, _ := regexp.Match(pattern, line); ok {
+				reg := regexp.MustCompile(pattern)
+				if !isJS && isVue {
+					target = fmt.Sprintf("%s('%s')+\"",dt,k)
+				} else if !isJS && !isVue {
+					target = fmt.Sprintf("this.%s('%s')+\"",dt,k)
+				} else if isJS {
+					target = fmt.Sprintf("i18n.t('%s')+\"",k)
+				}
+
+				newByte := reg.ReplaceAll(line, []byte(target))
+				line = newByte
+
+				if !needHandle {
+					needHandle = true
+				}
+				fmt.Println(pattern,string(line))
+			}
+
+			pattern = fmt.Sprintf("'%s",v)
+			if ok, _ := regexp.Match(pattern, line); ok {
+				reg := regexp.MustCompile(pattern)
+				if !isJS && isVue {
+					target = fmt.Sprintf("%s('%s')+'",dt,k)
+				} else if !isJS && !isVue {
+					target = fmt.Sprintf("this.%s('%s')+'",dt,k)
+				} else if isJS {
+					target = fmt.Sprintf("i18n.t('%s')+'",k)
+				}
+
+				newByte := reg.ReplaceAll(line, []byte(target))
+				line = newByte
+
+				if !needHandle {
+					needHandle = true
+				}
+				fmt.Println(pattern,string(line))
+			}
+
+			pattern = fmt.Sprintf("%s",v)
+
+			if ok, _ := regexp.Match(pattern, line); ok {
+				reg := regexp.MustCompile(pattern)
+				target = fmt.Sprintf("{{ %s('%s') }}",dt,k)
+				if isJS {
+					target = fmt.Sprintf(" i18n.t('%s') ",k)
+				}
 				newByte := reg.ReplaceAll(line, []byte(target))
 				line = newByte
 
@@ -238,6 +357,9 @@ func readFile(filePath string) ([]byte, bool, error) {
 
 	}
 	return output, needHandle, nil
+}
+func Write(filePath string, outPut []byte)error{
+	return writeToFile(filePath,outPut)
 }
 
 func writeToFile(filePath string, outPut []byte) error {

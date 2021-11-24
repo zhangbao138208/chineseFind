@@ -13,5 +13,5 @@ require (
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/liipx/gdict v0.0.0-20181021105648-93025599ec87 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
-	golang.org/x/sys v0.0.0-20210525143221-35b2ab0089ea // indirect
+	github.com/xuri/excelize/v2 v2.4.1 // indirect
 )
